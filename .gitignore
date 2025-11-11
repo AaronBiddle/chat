@@ -1,0 +1,72 @@
+# Python general
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+parts/
+
+# Virtualenvs
+venv/
+ENV/
+env/
+.venv/
+env.bak/
+venv.bak/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# Local environment files (do NOT commit secrets)
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and databases
+*.log
+*.sqlite3
+
+# Optional: ignore secrets and keyrings
+*.key
+*.pem
+
+# Windows executable artifacts
+*.exe
+
+# End of .gitignore
