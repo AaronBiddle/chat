@@ -1,9 +1,9 @@
 import os
-from typing import List
+from typing import List, Iterator
 from dotenv import find_dotenv, load_dotenv
 import openai
 
-from schemas import StreamResponse, StreamEvent, StreamChunk
+from schemas import StreamEvent, StreamChunk
 from .interface import Streamer
 
 
@@ -28,12 +28,9 @@ class MoonshotStreamer(Streamer):
     """
     
     @staticmethod
-    def stream_response(prompt: str) -> StreamResponse:
-        """Call the Chat Completions API and return a StreamResponse representing
-        the streaming output.
-
-        On any error we return a small fallback StreamResponse so callers can
-        remain simple while the streaming UX is iterated separately.
+    def stream_response(prompt: str) -> Iterator[StreamEvent]:
+        """Call the Chat Completions API and yield StreamEvent objects
+        representing the streaming output as they arrive.
         """
         # Hardcode the role for now; once we accept a full conversation we can
         # derive roles from the passed messages. Streaming responses here are the
@@ -52,8 +49,8 @@ class MoonshotStreamer(Streamer):
                 temperature=1.0,
             )
 
-            events: List[StreamEvent] = []
             index = 0
+            yielded_any = False
             for chunk in stream:
                 # Each chunk may contain one or more deltas; the client library
                 # shapes these objects differently, so we defensively probe fields.
@@ -78,19 +75,23 @@ class MoonshotStreamer(Streamer):
                     sc = StreamChunk(
                         text=text, index=index, delta=raw_delta, role=role, thinking=thinking_text
                     )
-                    events.append(
-                        StreamEvent(chunks=[sc], event_id=None, is_final=False, error=None)
-                    )
+                    ev = StreamEvent(chunks=[sc], event_id=None, is_final=False, error=None)
+                    yield ev
+                    yielded_any = True
                     index += 1
 
-            # Mark the last event as final if we produced any.
-            if events:
-                events[-1].is_final = True
+            # Signal end of stream: yield an empty final event so viewers
+            # can display a final marker.
+            if yielded_any:
+                yield StreamEvent(chunks=[], event_id=None, is_final=True, error=None)
+                return
 
-            return StreamResponse(request_id=None, events=events, model="kimi-k2-thinking", meta=None)
+            # No events produced; yield a final empty event to indicate completion
+            yield StreamEvent(chunks=[], event_id=None, is_final=True, error=None)
+            return
 
         except Exception:
-            # Resilient fallback: produce a short placeholder StreamResponse.
+            # Resilient fallback: yield a short placeholder final event.
             fallback_chunk = StreamChunk(
                 text=(
                     "Hello — this is a placeholder AI response. Next: wire up a real API."
@@ -101,5 +102,5 @@ class MoonshotStreamer(Streamer):
                 thinking=None,
             )
             fallback_event = StreamEvent(chunks=[fallback_chunk], event_id=None, is_final=True, error=None)
-            # Return a minimal StreamResponse; request_id/meta are optional.
-            return StreamResponse(request_id=None, events=[fallback_event], model=None, meta=None)
+            yield fallback_event
+            return

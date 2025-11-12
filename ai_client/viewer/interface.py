@@ -1,21 +1,22 @@
 from abc import ABC, abstractmethod
-from schemas import StreamResponse
+from typing import Iterable
+from schemas import StreamEvent
 
 
 class Viewer(ABC):
-    """Abstract base for rendering streaming responses.
-    
-    Implementations provide stateless rendering methods that display
-    StreamResponse objects to various outputs (console, GUI, file, etc).
+    """Abstract base for rendering streaming events.
+
+    Implementations consume an iterable of StreamEvent objects which may be
+    produced incrementally by a Streamer.
     """
-    
+
     @staticmethod
     @abstractmethod
-    def render(resp: StreamResponse, show_thinking: bool = True) -> None:
-        """Render a StreamResponse to some output.
-        
+    def render(events: Iterable[StreamEvent], show_thinking: bool = True) -> None:
+        """Render streaming events to some output.
+
         Args:
-            resp: The StreamResponse to render.
-            show_thinking: Whether to display internal reasoning/thinking content.
+            events: Iterable of StreamEvent objects (may be a generator).
+            show_thinking: Whether to display internal thinking tokens.
         """
-        pass
+        raise NotImplementedError
