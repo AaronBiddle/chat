@@ -23,8 +23,9 @@ _client = openai.Client(
 
 class MoonshotStreamer(Streamer):
     """Moonshot AI streaming implementation.
-    
-    Stateless streamer that calls the Moonshot API and returns StreamResponse objects.
+
+    Stateless streamer that calls the Moonshot API and yields StreamEvent objects
+    as they arrive.
     """
     
     @staticmethod

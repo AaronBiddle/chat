@@ -1,11 +1,11 @@
-from schemas import StreamResponse
+from schemas import StreamEvent
 from .interface import Viewer
 
 
 class ConsoleStreamViewer(Viewer):
-    """Simple console viewer for StreamResponse objects.
+    """Simple console viewer for streaming events.
 
-    This is intentionally minimal: it prints stream chunks in order. It
+    This is intentionally minimal: it prints event chunks in order. It
     distinguishes `thinking` fragments (internal reasoning) from visible
     `text` fragments. Later we can add a more advanced renderer (async,
     GUI, or rich/text styling).
@@ -13,7 +13,7 @@ class ConsoleStreamViewer(Viewer):
     
     @staticmethod
     def render(events, show_thinking: bool = True) -> None:
-        """Render a StreamResponse to stdout.
+        """Render streaming events to stdout.
 
         This consumes the events in order and prints any `thinking` and
         `text` fields found on chunks. Events flagged `is_final` cause a

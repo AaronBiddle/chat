@@ -43,16 +43,3 @@ class StreamEvent(BaseModel):
     is_final: bool = Field(False, description="True if this event completes the stream")
     error: Optional[str] = Field(None, description="Error message if the event represents an error")
 
-
-class StreamResponse(BaseModel):
-    """The full streaming response shape (for future use).
-
-    This model represents the full response that a streaming operation may produce.
-    It intentionally mirrors common chat-stream shapes: a sequence of events plus
-    optional metadata about the request/response.
-    """
-
-    request_id: Optional[str] = Field(None, description="Original request id if available")
-    events: List[StreamEvent] = Field(..., description="Ordered list of stream events")
-    model: Optional[str] = Field(None, description="Model used to produce the stream")
-    meta: Optional[dict] = Field(None, description="Additional metadata")
