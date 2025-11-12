@@ -1,12 +1,12 @@
-from ai_client.interface import stream_ai
+from ai_client import MoonshotStreamer, ConsoleStreamViewer
 
 
 def main() -> None:
     prompt = "Hi."
-    # Receive the StreamResponse from the ai client. We'll build a viewer
-    # later; for now we just obtain the response and do nothing with it.
-    stream_response = stream_ai(prompt)
-    # Intentionally do nothing with `stream_response` for now.
+    # Get streaming response using the Moonshot implementation
+    stream_response = MoonshotStreamer.stream_response(prompt)
+    # Render it using the console viewer
+    ConsoleStreamViewer.render(stream_response, show_thinking=True)
 
 
 if __name__ == "__main__":

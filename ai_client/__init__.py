@@ -1,4 +1,14 @@
-from ._implementation import call_ai_stream
-from .viewer import StreamResponseViewer, view_stream
+# Export abstract base classes for typing and extension
+from .stream.interface import Streamer
+from .viewer.interface import Viewer
 
-__all__ = ["call_ai_stream", "StreamResponseViewer", "view_stream"]
+# Export concrete implementations
+from .stream.impl import MoonshotStreamer
+from .viewer.impl import ConsoleStreamViewer
+
+__all__ = [
+    "Streamer",
+    "Viewer",
+    "MoonshotStreamer",
+    "ConsoleStreamViewer",
+]
