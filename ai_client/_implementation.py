@@ -3,7 +3,7 @@ from typing import List
 from dotenv import find_dotenv, load_dotenv
 import openai
 
-from .schemas import StreamResponse, StreamEvent, StreamChunk
+from schemas import StreamResponse, StreamEvent, StreamChunk
 
 
 _env_path = find_dotenv()

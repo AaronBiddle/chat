@@ -1,5 +1,5 @@
 from . import _implementation as _implementation
-from .schemas import StreamResponse
+from schemas import StreamResponse
 
 
 def stream_ai(prompt: str) -> StreamResponse:
