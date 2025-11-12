@@ -1,0 +1,349 @@
+### FILE: ai_client\__init__.py
+### ----------------------------------------------------------------------
+# Export abstract base classes for typing and extension
+from .stream.interface import Streamer
+from .viewer.interface import Viewer
+
+# Export concrete implementations
+from .stream.impl import MoonshotStreamer
+from .viewer.impl import ConsoleStreamViewer
+
+__all__ = [
+    "Streamer",
+    "Viewer",
+    "MoonshotStreamer",
+    "ConsoleStreamViewer",
+]
+
+### FILE: ai_client\stream\__init__.py
+### ----------------------------------------------------------------------
+from .interface import Streamer
+from .impl import MoonshotStreamer
+
+__all__ = ["Streamer", "MoonshotStreamer"]
+
+
+### FILE: ai_client\stream\impl.py
+### ----------------------------------------------------------------------
+import os
+from typing import List, Iterator
+from dotenv import find_dotenv, load_dotenv
+import openai
+
+from schemas import StreamEvent, StreamChunk
+from .interface import Streamer
+
+
+_env_path = find_dotenv()
+if _env_path:
+    load_dotenv(_env_path)
+
+# Read Moonshot API key from environment
+_MOONSHOT_API_KEY = os.getenv("MOONSHOT_API_KEY")
+
+# Create an OpenAI client configured for Moonshot (keeps the public API stable)
+_client = openai.Client(
+    base_url="https://api.moonshot.ai/v1",
+    api_key=_MOONSHOT_API_KEY,
+)
+
+
+class MoonshotStreamer(Streamer):
+    """Moonshot AI streaming implementation.
+
+    Stateless streamer that calls the Moonshot API and yields StreamEvent objects
+    as they arrive.
+    """
+    
+    @staticmethod
+    def stream_response(prompt: str) -> Iterator[StreamEvent]:
+        """Call the Chat Completions API and yield StreamEvent objects
+        representing the streaming output as they arrive.
+        """
+        # Hardcode the role for now; once we accept a full conversation we can
+        # derive roles from the passed messages. Streaming responses here are the
+        # assistant's output, so default to 'assistant'.
+        role = "assistant"
+
+        try:
+            stream = _client.chat.completions.create(
+                model="kimi-k2-thinking",
+                messages=[
+                    {"role": "system", "content": "You are Kimi."},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=1024 * 32,
+                stream=True,
+                temperature=1.0,
+            )
+
+            index = 0
+            yielded_any = False
+            for chunk in stream:
+                # Each chunk may contain one or more deltas; the client library
+                # shapes these objects differently, so we defensively probe fields.
+                if chunk.choices:
+                    choice = chunk.choices[0]
+                    delta_obj = getattr(choice, "delta", None)
+
+                    thinking_text = None
+                    text = None
+                    raw_delta = None
+
+                    if delta_obj is not None:
+                        # Try common attributes used in streaming payloads.
+                        thinking_text = getattr(delta_obj, "reasoning_content", None)
+                        text = getattr(delta_obj, "content", None)
+                        # Best-effort raw delta capture (may be an object)
+                        try:
+                            raw_delta = delta_obj.__dict__
+                        except Exception:
+                            raw_delta = None
+
+                    sc = StreamChunk(
+                        text=text, index=index, delta=raw_delta, role=role, thinking=thinking_text
+                    )
+                    ev = StreamEvent(chunks=[sc], event_id=None, is_final=False, error=None)
+                    yield ev
+                    yielded_any = True
+                    index += 1
+
+            # Signal end of stream: yield an empty final event so viewers
+            # can display a final marker.
+            if yielded_any:
+                yield StreamEvent(chunks=[], event_id=None, is_final=True, error=None)
+                return
+
+            # No events produced; yield a final empty event to indicate completion
+            yield StreamEvent(chunks=[], event_id=None, is_final=True, error=None)
+            return
+
+        except Exception:
+            # Resilient fallback: yield a short placeholder final event.
+            fallback_chunk = StreamChunk(
+                text=(
+                    "Hello — this is a placeholder AI response. Next: wire up a real API."
+                ),
+                index=0,
+                delta=None,
+                role=role,
+                thinking=None,
+            )
+            fallback_event = StreamEvent(chunks=[fallback_chunk], event_id=None, is_final=True, error=None)
+            yield fallback_event
+            return
+
+
+### FILE: ai_client\stream\interface.py
+### ----------------------------------------------------------------------
+from abc import ABC, abstractmethod
+from typing import Iterator
+from schemas import StreamEvent
+
+
+class Streamer(ABC):
+    """Abstract base for streaming AI clients.
+
+    Implementations provide stateless streaming methods that yield
+    StreamEvent objects as tokens/events arrive. This allows viewers to
+    consume streaming output incrementally.
+    """
+
+    @staticmethod
+    @abstractmethod
+    def stream_response(prompt: str) -> Iterator[StreamEvent]:
+        """Yield StreamEvent objects for the given prompt.
+
+        Implementations should yield events as they are received from the
+        underlying API. On error, an implementation may yield a final
+        error event and then return.
+        """
+        raise NotImplementedError
+
+
+### FILE: ai_client\viewer\__init__.py
+### ----------------------------------------------------------------------
+from .interface import Viewer
+from .impl import ConsoleStreamViewer
+
+__all__ = ["Viewer", "ConsoleStreamViewer"]
+
+
+### FILE: ai_client\viewer\impl.py
+### ----------------------------------------------------------------------
+from schemas import StreamEvent
+from .interface import Viewer
+
+
+class ConsoleStreamViewer(Viewer):
+    """Simple console viewer for streaming events.
+
+    This is intentionally minimal: it prints event chunks in order. It
+    distinguishes `thinking` fragments (internal reasoning) from visible
+    `text` fragments. Later we can add a more advanced renderer (async,
+    GUI, or rich/text styling).
+    """
+    
+    @staticmethod
+    def render(events, show_thinking: bool = True) -> None:
+        """Render streaming events to stdout.
+
+        This consumes the events in order and prints any `thinking` and
+        `text` fields found on chunks. Events flagged `is_final` cause a
+        newline and an end marker.
+        """
+        # Streamed rendering behavior:
+        # - Print a thinking header the first time we see a thinking token
+        #   (if show_thinking=True) and stream thinking tokens as they arrive.
+        # - When the first visible text token arrives, close the thinking
+        #   block (if open) and begin streaming visible text tokens.
+        # - At the end, print the final marker if any event is final.
+        import sys
+
+        thinking_open = False
+        thinking_closed = False
+        saw_text = False
+        any_final = False
+
+        for event in events:
+            for c in event.chunks:
+                # Stream thinking tokens incrementally.
+                if c.thinking and not thinking_closed and show_thinking:
+                    if not thinking_open:
+                        # Open framed thinking block.
+                        print("----------")
+                        print("Begin thinking")
+                        print("----------------")
+                        thinking_open = True
+
+                    # Write thinking fragment without newline and flush so it
+                    # appears progressively.
+                    print(c.thinking, end="", flush=True)
+
+                # When visible text arrives, close thinking block (if open)
+                # and stream text tokens.
+                if c.text:
+                    if thinking_open and not thinking_closed:
+                        # Close the thinking block cleanly before printing text
+                        print()  # end current thinking line
+                        print("----------")
+                        print("End thinking")
+                        print("--------------")
+                        thinking_closed = True
+
+                    # Stream visible text
+                    print(c.text, end="", flush=True)
+                    saw_text = True
+
+            if event.is_final:
+                any_final = True
+
+        # If thinking was opened but never closed (no visible text arrived),
+        # close it now so framing is complete.
+        if thinking_open and not thinking_closed:
+            print()  # finish thinking line
+            print("----------")
+            print("End thinking")
+            print("--------------")
+
+        # If we printed any visible text, ensure we end the line before final
+        # marker; otherwise final marker will appear after the thinking block.
+        if saw_text:
+            print()
+
+        if any_final:
+            print("-- end of stream --")
+
+
+### FILE: ai_client\viewer\interface.py
+### ----------------------------------------------------------------------
+from abc import ABC, abstractmethod
+from typing import Iterable
+from schemas import StreamEvent
+
+
+class Viewer(ABC):
+    """Abstract base for rendering streaming events.
+
+    Implementations consume an iterable of StreamEvent objects which may be
+    produced incrementally by a Streamer.
+    """
+
+    @staticmethod
+    @abstractmethod
+    def render(events: Iterable[StreamEvent], show_thinking: bool = True) -> None:
+        """Render streaming events to some output.
+
+        Args:
+            events: Iterable of StreamEvent objects (may be a generator).
+            show_thinking: Whether to display internal thinking tokens.
+        """
+        raise NotImplementedError
+
+
+### FILE: main.py
+### ----------------------------------------------------------------------
+from ai_client import MoonshotStreamer, ConsoleStreamViewer
+
+
+def main() -> None:
+    prompt = "Hi."
+    # Get streaming response using the Moonshot implementation
+    stream_response = MoonshotStreamer.stream_response(prompt)
+    # Render it using the console viewer
+    ConsoleStreamViewer.render(stream_response, show_thinking=True)
+
+
+if __name__ == "__main__":
+    main()
+
+
+### FILE: schemas.py
+### ----------------------------------------------------------------------
+from typing import Optional, List
+from pydantic import BaseModel, Field
+
+
+class StreamChunk(BaseModel):
+    """A single chunk (token or text fragment) emitted by the streaming API.
+
+    Fields:
+      - text: the text content of the chunk (decoded).
+      - index: optional sequence index for ordering.
+      - delta: optional raw delta payload when applicable (kept generic).
+      - role: optional role (e.g., 'assistant' or 'user') if present on this chunk.
+    """
+
+    text: Optional[str] = Field(
+        None,
+        description=(
+            "The text content of this chunk (optional). Some chunks may only contain "
+            "thinking/internal tokens and therefore omit `text`."
+        ),
+    )
+    index: Optional[int] = Field(None, description="Optional sequence index")
+    delta: Optional[dict] = Field(None, description="Raw delta payload when available")
+    role: Optional[str] = Field(None, description="Optional role for this chunk")
+    thinking: Optional[str] = Field(
+        None,
+        description=(
+            "Optional thinking/internal text for this chunk. "
+            "If present, consumers can treat this string the same way they treat `text` "
+            "(e.g., render as internal reasoning)."
+        ),
+    )
+
+
+class StreamEvent(BaseModel):
+    """A richer event wrapper for stream messages.
+
+    Use this when you want metadata attached to chunks (timestamps, ids, final flags).
+    """
+
+    chunks: List[StreamChunk] = Field(..., description="One or more chunks in this event")
+    event_id: Optional[str] = Field(None, description="An optional event identifier")
+    is_final: bool = Field(False, description="True if this event completes the stream")
+    error: Optional[str] = Field(None, description="Error message if the event represents an error")
+
+
+
