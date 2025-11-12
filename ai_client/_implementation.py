@@ -16,7 +16,7 @@ client = openai.Client(
 )
 
 
-def call_ai(prompt: str) -> None:
+def call_ai_stream(prompt: str) -> None:
     """Call the Chat Completions API via the configured `client`.
 
     This attempts to use the streaming API and assemble the response. On any

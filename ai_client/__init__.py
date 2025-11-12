@@ -1,3 +1,3 @@
-from ._implementation import call_ai
+from ._implementation import call_ai_stream
 
-__all__ = ["call_ai"]
+__all__ = ["call_ai_stream"]
