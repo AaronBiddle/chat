@@ -1,6 +1,10 @@
 import os
+from typing import List
 from dotenv import find_dotenv, load_dotenv
 import openai
+
+from .schemas import StreamResponse, StreamEvent, StreamChunk
+
 
 _env_path = find_dotenv()
 if _env_path:
@@ -16,13 +20,18 @@ client = openai.Client(
 )
 
 
-def call_ai_stream(prompt: str) -> None:
-    """Call the Chat Completions API via the configured `client`.
+def call_ai_stream(prompt: str) -> StreamResponse:
+    """Call the Chat Completions API and return a StreamResponse representing
+    the streaming output.
 
-    This attempts to use the streaming API and assemble the response. On any
-    error (network, library differences, etc.) we fall back to the original
-    stubbed response so calling code remains simple while you iterate.
+    On any error we return a small fallback StreamResponse so callers can
+    remain simple while the streaming UX is iterated separately.
     """
+    # Hardcode the role for now; once we accept a full conversation we can
+    # derive roles from the passed messages. Streaming responses here are the
+    # assistant's output, so default to 'assistant'.
+    role = "assistant"
+
     try:
         stream = client.chat.completions.create(
             model="kimi-k2-thinking",
@@ -35,22 +44,54 @@ def call_ai_stream(prompt: str) -> None:
             temperature=1.0,
         )
 
-        parts: list[str] = []
-        thinking = False
+        events: List[StreamEvent] = []
+        index = 0
         for chunk in stream:
+            # Each chunk may contain one or more deltas; the client library
+            # shapes these objects differently, so we defensively probe fields.
             if chunk.choices:
                 choice = chunk.choices[0]
-                if choice.delta and hasattr(choice.delta, "reasoning_content"):
-                    if not thinking:
-                        thinking = True
-                        print("=============Start Reasoning=============")
-                    print(getattr(choice.delta, "reasoning_content"), end="")
-                if choice.delta and choice.delta.content:
-                    if thinking:
-                        thinking = False
-                        print("\n=============End Reasoning=============")
-                    print(choice.delta.content, end="")
+                delta_obj = getattr(choice, "delta", None)
+
+                thinking_text = None
+                text = None
+                raw_delta = None
+
+                if delta_obj is not None:
+                    # Try common attributes used in streaming payloads.
+                    thinking_text = getattr(delta_obj, "reasoning_content", None)
+                    text = getattr(delta_obj, "content", None)
+                    # Best-effort raw delta capture (may be an object)
+                    try:
+                        raw_delta = delta_obj.__dict__
+                    except Exception:
+                        raw_delta = None
+
+                sc = StreamChunk(
+                    text=text, index=index, delta=raw_delta, role=role, thinking=thinking_text
+                )
+                events.append(
+                    StreamEvent(chunks=[sc], event_id=None, is_final=False, error=None)
+                )
+                index += 1
+
+        # Mark the last event as final if we produced any.
+        if events:
+            events[-1].is_final = True
+
+        return StreamResponse(request_id=None, events=events, model="kimi-k2-thinking", meta=None)
 
     except Exception:
-        # Keep the original stub as a resilient fallback.
-        print("Hello — this is a placeholder AI response. Next: wire up a real API.")
+        # Resilient fallback: produce a short placeholder StreamResponse.
+        fallback_chunk = StreamChunk(
+            text=(
+                "Hello — this is a placeholder AI response. Next: wire up a real API."
+            ),
+            index=0,
+            delta=None,
+            role=role,
+            thinking=None,
+        )
+        fallback_event = StreamEvent(chunks=[fallback_chunk], event_id=None, is_final=True, error=None)
+        # Return a minimal StreamResponse; request_id/meta are optional.
+        return StreamResponse(request_id=None, events=[fallback_event], model=None, meta=None)
