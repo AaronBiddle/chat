@@ -3,7 +3,7 @@ from typing import List, Iterator
 from dotenv import find_dotenv, load_dotenv
 import openai
 
-from schemas import StreamEvent, StreamChunk
+from schemas import StreamEvent, StreamChunk, Message
 from .interface import StreamerClass
 
 
@@ -29,22 +29,41 @@ class Streamer(StreamerClass):
     """
     
     @staticmethod
-    def stream_response(prompt: str) -> Iterator[StreamEvent]:
+    def stream_response(messages: List[Message]) -> Iterator[StreamEvent]:
         """Call the Chat Completions API and yield StreamEvent objects
         representing the streaming output as they arrive.
+
+        Accepts a list of `Message` objects (conversation history). These are
+        converted to the underlying API format (dicts with `role` and
+        `content`) before sending.
         """
-        # Hardcode the role for now; once we accept a full conversation we can
-        # derive roles from the passed messages. Streaming responses here are the
-        # assistant's output, so default to 'assistant'.
+        # Streaming responses here are the assistant's output, so default to
+        # 'assistant' for chunk role metadata unless the API provides one.
         role = "assistant"
+
+        # Convert provided `Message` objects to the API message format. Support
+        # both `Message` instances and plain dicts for convenience.
+        api_messages = []
+        for m in messages:
+            try:
+                # pydantic model: has 'role' and 'text'
+                r = getattr(m, "role")
+                t = getattr(m, "text")
+                api_messages.append({"role": r, "content": t})
+            except Exception:
+                # Fallback for plain dicts passed in mistakenly
+                if isinstance(m, dict):
+                    # prefer 'content' if present, otherwise 'text'
+                    content = m.get("content", m.get("text"))
+                    api_messages.append({"role": m.get("role"), "content": content})
+                else:
+                    # Skip unknown entries
+                    continue
 
         try:
             stream = _client.chat.completions.create(
                 model="kimi-k2-thinking",
-                messages=[
-                    {"role": "system", "content": "You are Kimi."},
-                    {"role": "user", "content": prompt},
-                ],
+                messages=api_messages,
                 max_tokens=1024 * 32,
                 stream=True,
                 temperature=1.0,

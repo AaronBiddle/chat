@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Iterator
-from schemas import StreamEvent
+from typing import Iterator, List
+from schemas import StreamEvent, Message
 
 
 class StreamerClass(ABC):
@@ -13,8 +13,8 @@ class StreamerClass(ABC):
 
     @staticmethod
     @abstractmethod
-    def stream_response(prompt: str) -> Iterator[StreamEvent]:
-        """Yield StreamEvent objects for the given prompt.
+    def stream_response(messages: List[Message]) -> Iterator[StreamEvent]:
+        """Yield StreamEvent objects for the given conversation messages.
 
         Implementations should yield events as they are received from the
         underlying API. On error, an implementation may yield a final

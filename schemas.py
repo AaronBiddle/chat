@@ -54,5 +54,4 @@ class Message(BaseModel):
     """
     role: str = Field(..., description="Role such as 'user' or 'assistant'")
     text: str = Field(..., description="Decoded text content of the message")
-    thinking: Optional[str] = Field(None, description="Optional internal/thinking text")
 
