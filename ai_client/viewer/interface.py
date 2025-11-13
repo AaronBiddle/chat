@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Iterable
+from typing import Iterable, Dict
 from schemas import StreamEvent
 
 
@@ -18,5 +18,27 @@ class StreamViewerClass(ABC):
         Args:
             events: Iterable of StreamEvent objects (may be a generator).
             show_thinking: Whether to display internal thinking tokens.
+        """
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def render_and_aggregate(
+        events: Iterable[StreamEvent], show_thinking: bool = True
+    ) -> Dict[str, str]:
+        """Render streaming events and return aggregated output.
+
+        Implementations should behave like `render` but also return a dictionary
+        with two keys:
+            - 'thinking': concatenated internal thinking tokens (if any)
+            - 'text': concatenated final text tokens
+
+        Args:
+            events: Iterable of StreamEvent objects (may be a generator).
+            show_thinking: Whether to include internal thinking tokens in the
+                aggregation.
+
+        Returns:
+            Dict[str, str]: mapping with keys 'thinking' and 'text'.
         """
         raise NotImplementedError
