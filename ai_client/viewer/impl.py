@@ -1,8 +1,8 @@
 from schemas import StreamEvent
-from .interface import Viewer
+from .interface import StreamViewerClass
 
 
-class ConsoleStreamViewer(Viewer):
+class StreamViewer(StreamViewerClass):
     """Simple console viewer for streaming events.
 
     This is intentionally minimal: it prints event chunks in order. It

@@ -1,4 +1,4 @@
-from .interface import Streamer
-from .impl import MoonshotStreamer
+from .interface import StreamerClass
+from .impl import Streamer
 
-__all__ = ["Streamer", "MoonshotStreamer"]
+__all__ = ["StreamerClass", "Streamer"]

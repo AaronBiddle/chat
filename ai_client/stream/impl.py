@@ -4,7 +4,7 @@ from dotenv import find_dotenv, load_dotenv
 import openai
 
 from schemas import StreamEvent, StreamChunk
-from .interface import Streamer
+from .interface import StreamerClass
 
 
 _env_path = find_dotenv()
@@ -21,7 +21,7 @@ _client = openai.Client(
 )
 
 
-class MoonshotStreamer(Streamer):
+class Streamer(StreamerClass):
     """Moonshot AI streaming implementation.
 
     Stateless streamer that calls the Moonshot API and yields StreamEvent objects

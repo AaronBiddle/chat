@@ -3,7 +3,7 @@ from typing import Iterator
 from schemas import StreamEvent
 
 
-class Streamer(ABC):
+class StreamerClass(ABC):
     """Abstract base for streaming AI clients.
 
     Implementations provide stateless streaming methods that yield

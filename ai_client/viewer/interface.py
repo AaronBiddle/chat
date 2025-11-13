@@ -3,7 +3,7 @@ from typing import Iterable
 from schemas import StreamEvent
 
 
-class Viewer(ABC):
+class StreamViewerClass(ABC):
     """Abstract base for rendering streaming events.
 
     Implementations consume an iterable of StreamEvent objects which may be

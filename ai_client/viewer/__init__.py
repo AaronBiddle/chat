@@ -1,4 +1,4 @@
-from .interface import Viewer
-from .impl import ConsoleStreamViewer
+from .interface import StreamViewerClass
+from .impl import StreamViewer
 
-__all__ = ["Viewer", "ConsoleStreamViewer"]
+__all__ = ["StreamViewerClass", "StreamViewer"]
