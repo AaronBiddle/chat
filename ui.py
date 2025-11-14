@@ -35,15 +35,47 @@ def reply():
     # Add user message
     messages.append(Message(role="user", text=prompt))
 
+    # Build and print the API payload that's sent to the streamer so you
+    # can verify exactly what the remote API receives.
+    api_messages = []
+    for m in messages:
+        try:
+            r = getattr(m, "role")
+            t = getattr(m, "text")
+            api_messages.append({"role": r, "content": t})
+        except Exception:
+            if isinstance(m, dict):
+                content = m.get("content", m.get("text"))
+                api_messages.append({"role": m.get("role"), "content": content})
+            else:
+                continue
+
+    print("\nMessages sent to streamer:")
+    for m in api_messages:
+        print(m)
+
     # Call the streamer and aggregate the response
     stream = Streamer.stream_response(messages)
     agg = StreamViewer.render_and_aggregate(stream, show_thinking=True)
 
-    assistant_text = agg.get("text", "") if isinstance(agg, dict) else ""
-    # Append assistant message to conversation
-    messages.append(Message(role="assistant", text=assistant_text))
+    # Extract thinking and visible text. Only append non-thinking (visible)
+    # text to the conversation history per your preference. The thinking
+    # tokens are still returned to the client but not stored as assistant
+    # messages unless visible text exists.
+    thinking = agg.get("thinking", "") if isinstance(agg, dict) else ""
+    text = agg.get("text", "") if isinstance(agg, dict) else ""
+    assistant_text = text.strip()
 
-    return jsonify({"thinking": agg.get("thinking"), "text": assistant_text, "messages": [m.dict() for m in messages]})
+    # Append assistant message only if visible (non-thinking) text exists.
+    if assistant_text:
+        messages.append(Message(role="assistant", text=assistant_text))
+
+    return jsonify({
+        "thinking": thinking,
+        "text": text,
+        "assistant_text": assistant_text,
+        "messages": [m.dict() for m in messages],
+    })
 
 
 if __name__ == "__main__":
