@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat UI</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; }
+      #container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .panel { border: 1px solid #ddd; padding: 12px; border-radius: 6px; }
+      #history { height: 60vh; overflow: auto; white-space: pre-wrap; }
+      #thinking { color: #666; font-style: italic; }
+      #response { white-space: pre-wrap; }
+      .msg-user { color: #0b5; }
+      .msg-assistant { color: #05a; }
+    </style>
+  </head>
+  <body>
+    <h2>Minimal Chat UI</h2>
+    <div id="container">
+      <div class="panel">
+        <h3>Conversation</h3>
+        <div id="history">
+          {% for m in messages %}
+            <div class="msg-{{ m.role }}"><strong>{{ m.role }}:</strong> {{ m.text }}</div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Latest Response</h3>
+        <div id="thinking"></div>
+        <div id="response"></div>
+      </div>
+    </div>
+
+    <form id="promptForm" style="margin-top:16px;">
+      <input id="promptInput" placeholder="Type a prompt and press Send" style="width:70%" />
+      <button type="submit">Send</button>
+    </form>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
