@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const thinkingDiv = document.getElementById("thinking");
   const responseDiv = document.getElementById("response");
 
-  form.addEventListener("submit", async (e) => {
+  form.addEventListener("submit", (e) => {
     e.preventDefault();
     const prompt = input.value.trim();
     if (!prompt) return;
@@ -13,36 +13,57 @@ document.addEventListener("DOMContentLoaded", function () {
     thinkingDiv.textContent = "Thinking...";
     responseDiv.textContent = "";
 
-    try {
-      const res = await fetch("/reply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
+    // Use EventSource with GET query param for SSE streaming
+    const url = "/stream?prompt=" + encodeURIComponent(prompt);
+    const es = new EventSource(url);
 
-      if (!res.ok) {
-        const err = await res.json();
-        thinkingDiv.textContent = "Error: " + (err.error || res.statusText);
-        return;
+    let text_acc = "";
+
+    es.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+
+        // Update thinking area incrementally (join chunk thinking tokens)
+        if (data.chunks) {
+          data.chunks.forEach((c) => {
+            if (c.thinking) {
+              thinkingDiv.textContent = (thinkingDiv.textContent || "") + c.thinking;
+            }
+            if (c.text) {
+              responseDiv.textContent = responseDiv.textContent + c.text;
+              text_acc += c.text;
+            }
+          });
+        }
+
+        if (data.is_final) {
+          // Finalize: close EventSource and refresh history
+          es.close();
+
+          // Refresh conversation history by fetching messages (read-only)
+          fetch("/messages")
+            .then((r) => r.json())
+            .then((full) => {
+              historyDiv.innerHTML = "";
+              (full.messages || []).forEach((m) => {
+                const el = document.createElement("div");
+                el.className = "msg-" + m.role;
+                el.innerHTML = `<strong>${m.role}:</strong> ${m.text}`;
+                historyDiv.appendChild(el);
+              });
+            })
+            .catch(() => {});
+
+          input.value = "";
+        }
+      } catch (err) {
+        console.error("Failed to parse SSE data", err, evt.data);
       }
+    };
 
-      const data = await res.json();
-
-      thinkingDiv.textContent = data.thinking || "";
-      responseDiv.textContent = data.text || "";
-
-      // Refresh conversation history
-      historyDiv.innerHTML = "";
-      (data.messages || []).forEach((m) => {
-        const el = document.createElement("div");
-        el.className = "msg-" + m.role;
-        el.innerHTML = `<strong>${m.role}:</strong> ${m.text}`;
-        historyDiv.appendChild(el);
-      });
-
-      input.value = "";
-    } catch (err) {
-      thinkingDiv.textContent = "Network error";
-    }
+    es.onerror = (err) => {
+      thinkingDiv.textContent = "Stream error";
+      es.close();
+    };
   });
 });
