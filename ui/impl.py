@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify
+from flask_socketio import SocketIO, emit
 from typing import List, Optional, Any, Dict
 import json
 
@@ -23,6 +24,7 @@ class FlaskWebUI(WebUIClass):
                 to a system message defining the assistant persona.
         """
         self.app = Flask(__name__, static_folder="../static", template_folder="../templates")
+        self.socketio = SocketIO(self.app, cors_allowed_origins="*")
         
         # Initialize conversation history
         if initial_messages is None:
@@ -47,7 +49,8 @@ class FlaskWebUI(WebUIClass):
 
     def run(self, host: str = "127.0.0.1", port: int = 5000, debug: bool = True) -> None:
         """Start the Flask development server."""
-        self.app.run(host=host, port=port, debug=debug)
+        # Use SocketIO's run method to support WebSocket transport
+        self.socketio.run(self.app, host=host, port=port, debug=debug)
 
     def get_app(self) -> Flask:
         """Return the Flask application instance."""
@@ -103,64 +106,60 @@ class FlaskWebUI(WebUIClass):
                 "messages": [m.dict() for m in self.messages],
             })
 
-        @self.app.route("/stream", methods=["GET", "POST"])
-        def stream_reply():
-            """Stream incremental events using Server-Sent Events (SSE).
+        # Socket.IO event handler for streaming replies
+        @self.socketio.on("start_stream")
+        def handle_start_stream(data):
+            """Handle a new streaming request over Socket.IO.
 
-            Accepts either GET with `?prompt=...` or POST with JSON `{prompt: ...}`.
-            Appends the user message, calls the Streamer, and yields events as JSON
-            payloads. When the stream ends, visible text is appended as an assistant
-            message.
+            Expects payload: {"prompt": "..."}. Emits incremental
+            "stream_chunk" events and a final "stream_complete" event
+            with aggregated content.
             """
-            if request.method == "POST":
-                data = request.get_json(force=True)
-                prompt = data.get("prompt", "")
-            else:
-                prompt = request.args.get("prompt", "")
-
+            prompt = (data or {}).get("prompt", "")
             if not prompt:
-                return jsonify({"error": "empty prompt"}), 400
+                emit("stream_error", {"error": "empty prompt"})
+                return
 
             # Add user message
             self.messages.append(Message(role="user", text=prompt))
 
             # Build and print API payload for verification
             api_messages = self._build_api_messages()
-            print("\nMessages sent to streamer (SSE):")
+            print("\nMessages sent to streamer (Socket.IO):")
             for m in api_messages:
                 print(m)
 
-            def event_stream():
-                stream = Streamer.stream_response(self.messages)
-                text_buf = []
-                thinking_buf = []
+            stream = Streamer.stream_response(self.messages)
+            text_buf = []
+            thinking_buf = []
 
-                for ev in stream:
-                    # Convert event to dict for JSON serialization
-                    try:
-                        payload = ev.dict()
-                    except Exception:
-                        # Best-effort fallback
-                        payload = {"chunks": [], "is_final": getattr(ev, "is_final", False)}
+            for ev in stream:
+                try:
+                    payload = ev.dict()
+                except Exception:
+                    payload = {"chunks": [], "is_final": getattr(ev, "is_final", False)}
 
-                    # Yield the SSE data frame
-                    yield f"data: {json.dumps(payload)}\n\n"
+                # Emit incremental chunk event
+                emit("stream_chunk", payload)
 
-                    # Accumulate visible text and thinking tokens
-                    for c in payload.get("chunks", []):
-                        if c.get("thinking"):
-                            thinking_buf.append(c.get("thinking"))
-                        if c.get("text"):
-                            text_buf.append(c.get("text"))
+                for c in payload.get("chunks", []):
+                    if c.get("thinking"):
+                        thinking_buf.append(c.get("thinking"))
+                    if c.get("text"):
+                        text_buf.append(c.get("text"))
 
-                    if payload.get("is_final"):
-                        # Append assistant visible text only (if present)
-                        assistant_text = "".join(text_buf).strip()
-                        if assistant_text:
-                            self.messages.append(Message(role="assistant", text=assistant_text))
-                        break
+                if payload.get("is_final"):
+                    assistant_text = "".join(text_buf).strip()
+                    if assistant_text:
+                        self.messages.append(Message(role="assistant", text=assistant_text))
 
-            return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
+                    emit("stream_complete", {
+                        "thinking": "".join(thinking_buf),
+                        "text": "".join(text_buf),
+                        "assistant_text": assistant_text,
+                        "messages": [m.dict() for m in self.messages],
+                    })
+                    break
 
         @self.app.route("/messages", methods=["GET"])
         def get_messages():
