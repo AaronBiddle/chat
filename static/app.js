@@ -5,6 +5,38 @@ document.addEventListener("DOMContentLoaded", function () {
   const thinkingDiv = document.getElementById("thinking");
   const responseDiv = document.getElementById("response");
 
+  // Create WinBox windows for the two panels, if WinBox is available
+  if (window.WinBox) {
+    const conversationPanel = document.getElementById("conversationPanel");
+    const responsePanel = document.getElementById("responsePanel");
+
+    if (conversationPanel) {
+      conversationPanel.style.display = "block";
+      new WinBox({
+        title: "Conversation",
+        x: "2%",
+        y: "4%",
+        width: "45%",
+        height: "70%",
+        background: "#101820",
+        mount: conversationPanel,
+      });
+    }
+
+    if (responsePanel) {
+      responsePanel.style.display = "block";
+      new WinBox({
+        title: "Latest Response",
+        x: "53%",
+        y: "8%",
+        width: "40%",
+        height: "60%",
+        background: "#182635",
+        mount: responsePanel,
+      });
+    }
+  }
+
   // Initialize Socket.IO client
   const socket = io();
 

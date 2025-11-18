@@ -4,21 +4,79 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Chat UI</title>
+    <!-- WinBox CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/winbox@0.2.82/dist/css/winbox.min.css"
+    />
     <style>
-      body { font-family: Arial, sans-serif; margin: 24px; }
-      #container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-      .panel { border: 1px solid #ddd; padding: 12px; border-radius: 6px; }
-      #history { height: 60vh; overflow: auto; white-space: pre-wrap; }
-      #thinking { color: #666; font-style: italic; }
-      #response { white-space: pre-wrap; }
-      .msg-user { color: #0b5; }
-      .msg-assistant { color: #05a; }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        height: 100vh;
+        overflow: hidden;
+        background: linear-gradient(135deg, #141e30, #243b55);
+      }
+
+      #desktop {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        background: radial-gradient(circle at top left, #3a6186, transparent 55%),
+          radial-gradient(circle at bottom right, #89253e, transparent 55%);
+      }
+
+      .panel {
+        padding: 12px;
+      }
+
+      #history {
+        height: 60vh;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+
+      #thinking {
+        color: #ddd;
+        font-style: italic;
+      }
+
+      #response {
+        white-space: pre-wrap;
+      }
+
+      .msg-user {
+        color: #4fe3a5;
+      }
+
+      .msg-assistant {
+        color: #5ab0ff;
+      }
+
+      #promptForm {
+        position: fixed;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.65);
+        padding: 8px 12px;
+        border-radius: 8px;
+        backdrop-filter: blur(10px);
+      }
+
+      #promptInput {
+        width: 60vw;
+      }
+
+      #promptForm button {
+        margin-left: 8px;
+      }
     </style>
   </head>
   <body>
-    <h2>Minimal Chat UI</h2>
-    <div id="container">
-      <div class="panel">
+    <div id="desktop">
+      <!-- Hidden content containers that WinBox windows will mount -->
+      <div id="conversationPanel" class="panel" style="display:none;">
         <h3>Conversation</h3>
         <div id="history">
           {% for m in messages %}
@@ -26,18 +84,21 @@
           {% endfor %}
         </div>
       </div>
-      <div class="panel">
+
+      <div id="responsePanel" class="panel" style="display:none;">
         <h3>Latest Response</h3>
         <div id="thinking"></div>
         <div id="response"></div>
       </div>
     </div>
 
-    <form id="promptForm" style="margin-top:16px;">
-      <input id="promptInput" placeholder="Type a prompt and press Send" style="width:70%" />
+    <form id="promptForm">
+      <input id="promptInput" placeholder="Type a prompt and press Send" />
       <button type="submit">Send</button>
     </form>
 
+    <!-- WinBox JS -->
+    <script src="https://unpkg.com/winbox@0.2.82/dist/js/winbox.min.js"></script>
     <!-- Socket.IO client (no SRI to avoid hash mismatch issues) -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" crossorigin="anonymous"></script>
     <script src="/static/app.js"></script>
