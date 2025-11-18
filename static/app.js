@@ -46,7 +46,6 @@ document.addEventListener("DOMContentLoaded", function () {
     thinkingToggle.type = "button";
     thinkingToggle.textContent = "Show thinking";
     thinkingToggle.className = "thinking-toggle";
-    thinkingToggle.style.display = "none";
 
     const thinkingDiv = document.createElement("div");
     thinkingDiv.className = "thinking-body";
@@ -79,10 +78,6 @@ document.addEventListener("DOMContentLoaded", function () {
         data.chunks.forEach((c) => {
           if (c.thinking) {
             if (activeThinkingEl) {
-              const toggleBtn = activeThinkingEl.previousSibling;
-              if (toggleBtn && toggleBtn.tagName === "BUTTON") {
-                toggleBtn.style.display = "inline-block";
-              }
               activeThinkingEl.textContent = (activeThinkingEl.textContent || "") + c.thinking;
             }
           }

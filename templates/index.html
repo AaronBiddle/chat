@@ -4,35 +4,40 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Chat UI</title>
-    <!-- WinBox CSS -->
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/winbox@0.2.82/dist/css/winbox.min.css"
-    />
     <style>
       body {
         font-family: Arial, sans-serif;
         margin: 0;
-        height: 100vh;
-        overflow: hidden;
         background: linear-gradient(135deg, #141e30, #243b55);
+        color: #e5e7eb;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden; /* Reintroduce overflow hidden like original */
       }
 
+      /* Step 2: introduce a centered content column without overflow hidden */
+      #pageWrap {
+        padding: 16px 24px 96px; /* extra bottom space for fixed form */
+        max-width: 1100px;
+        width: 100%;
+        margin: 0 auto;
+      }
+
+      /* Desktop wrapper similar to earlier version */
       #desktop {
         position: relative;
-        width: 100vw;
-        height: 100vh;
-        background: radial-gradient(circle at top left, #3a6186, transparent 55%),
-          radial-gradient(circle at bottom right, #89253e, transparent 55%);
-      }
-
-      .panel {
-        padding: 12px;
+        width: 100%;
+        height: 100%;
       }
 
       #history {
-        height: 60vh;
-        overflow: auto;
+        border: 1px solid #374151;
+        border-radius: 6px;
+        padding: 12px;
+        min-height: 120px;
+        max-width: 700px;
+        background: #020617;
         white-space: pre-wrap;
       }
 
@@ -65,32 +70,30 @@
 
       .thinking-toggle {
         margin-top: 4px;
-        padding: 2px 8px;
-        font-size: 0.8em;
+        padding: 4px 10px;
+        font-size: 0.85em;
         border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.25);
-        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(0, 0, 0, 0.45);
         color: #f5f5f5;
         cursor: pointer;
+        position: relative;
+        z-index: 2;
+        opacity: 0.85;
       }
 
       .thinking-toggle:hover {
         background: rgba(255, 255, 255, 0.08);
+        opacity: 1;
       }
 
       #promptForm {
-        position: fixed;
-        left: 50%;
-        bottom: 16px;
-        transform: translateX(-50%);
-        background: rgba(0, 0, 0, 0.65);
-        padding: 8px 12px;
-        border-radius: 8px;
-        backdrop-filter: blur(10px);
+        margin-top: 16px;
       }
 
       #promptInput {
         width: 60vw;
+        max-width: 680px;
       }
 
       #promptForm button {
@@ -99,27 +102,29 @@
     </style>
   </head>
   <body>
-    <div id="desktop">
-      <!-- Hidden content containers that WinBox windows will mount -->
-      <div id="chatPanel" class="panel" style="display:none;">
-        <h3>Chat</h3>
-        <div id="history">
-          {% for m in messages %}
-            <div class="msg-{{ m.role }}"><strong>{{ m.role }}:</strong> {{ m.text }}</div>
-          {% endfor %}
+    <div id="pageWrap">
+      <h3>Chat UI (Step 3: overflow hidden + desktop wrapper)</h3>
+      <div id="desktop">
+        <div id="chatPanel">
+          <div id="history">
+            {% for m in messages %}
+              <div class="msg-{{ m.role }}"><strong>{{ m.role }}:</strong> {{ m.text }}</div>
+            {% endfor %}
+          </div>
         </div>
       </div>
     </div>
 
-    <form id="promptForm">
-      <input id="promptInput" placeholder="Type a prompt and press Send" />
+    <form id="promptForm" style="position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(0,0,0,0.6);padding:8px 12px;border-radius:8px;backdrop-filter:blur(6px);">
+      <input id="promptInput" placeholder="Type a prompt and press Enter" style="width:50vw;max-width:680px;" />
       <button type="submit">Send</button>
     </form>
 
-    <!-- WinBox JS -->
-    <script src="https://unpkg.com/winbox@0.2.82/dist/js/winbox.min.js"></script>
-    <!-- Socket.IO client (no SRI to avoid hash mismatch issues) -->
+    <!-- Use full chat script (no WinBox yet) -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" crossorigin="anonymous"></script>
+    <!-- Add WinBox assets (not styled yet) -->
+    <link rel="stylesheet" href="https://unpkg.com/winbox@0.2.82/dist/css/winbox.min.css" />
+    <script src="https://unpkg.com/winbox@0.2.82/dist/js/winbox.min.js"></script>
     <script src="/static/app.js"></script>
   </body>
 </html>
