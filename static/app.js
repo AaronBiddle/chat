@@ -2,37 +2,24 @@ document.addEventListener("DOMContentLoaded", function () {
   const form = document.getElementById("promptForm");
   const input = document.getElementById("promptInput");
   const historyDiv = document.getElementById("history");
-  const thinkingDiv = document.getElementById("thinking");
-  const responseDiv = document.getElementById("response");
+  let activeThinkingEl = null;
+  let activeResponseEl = null;
+  let initialMessagesRendered = false;
 
   // Create WinBox windows for the two panels, if WinBox is available
   if (window.WinBox) {
-    const conversationPanel = document.getElementById("conversationPanel");
-    const responsePanel = document.getElementById("responsePanel");
+    const chatPanel = document.getElementById("chatPanel");
 
-    if (conversationPanel) {
-      conversationPanel.style.display = "block";
+    if (chatPanel) {
+      chatPanel.style.display = "block";
       new WinBox({
-        title: "Conversation",
-        x: "2%",
-        y: "4%",
-        width: "45%",
-        height: "70%",
+        title: "Chat",
+        x: "8%",
+        y: "6%",
+        width: "70%",
+        height: "75%",
         background: "#101820",
-        mount: conversationPanel,
-      });
-    }
-
-    if (responsePanel) {
-      responsePanel.style.display = "block";
-      new WinBox({
-        title: "Latest Response",
-        x: "53%",
-        y: "8%",
-        width: "40%",
-        height: "60%",
-        background: "#182635",
-        mount: responsePanel,
+        mount: chatPanel,
       });
     }
   }
@@ -45,8 +32,41 @@ document.addEventListener("DOMContentLoaded", function () {
     const prompt = input.value.trim();
     if (!prompt) return;
 
-    thinkingDiv.textContent = "Thinking...";
-    responseDiv.textContent = "";
+    // Create a new message block with its own collapsible thinking area
+    const msgWrapper = document.createElement("div");
+    msgWrapper.className = "msg-assistant";
+
+    const header = document.createElement("div");
+    header.innerHTML = `<strong>assistant:</strong>`;
+
+    const responseDiv = document.createElement("div");
+    responseDiv.className = "response-body";
+
+    const thinkingToggle = document.createElement("button");
+    thinkingToggle.type = "button";
+    thinkingToggle.textContent = "Show thinking";
+    thinkingToggle.className = "thinking-toggle";
+    thinkingToggle.style.display = "none";
+
+    const thinkingDiv = document.createElement("div");
+    thinkingDiv.className = "thinking-body";
+    thinkingDiv.style.display = "none";
+    thinkingDiv.style.whiteSpace = "pre-wrap";
+
+    thinkingToggle.addEventListener("click", () => {
+      const isHidden = thinkingDiv.style.display === "none";
+      thinkingDiv.style.display = isHidden ? "block" : "none";
+      thinkingToggle.textContent = isHidden ? "Hide thinking" : "Show thinking";
+    });
+
+    msgWrapper.appendChild(header);
+    msgWrapper.appendChild(thinkingToggle);
+    msgWrapper.appendChild(thinkingDiv);
+    msgWrapper.appendChild(responseDiv);
+    historyDiv.appendChild(msgWrapper);
+
+    activeResponseEl = responseDiv;
+    activeThinkingEl = thinkingDiv;
 
     // Emit event to start streaming over Socket.IO
     socket.emit("start_stream", { prompt });
@@ -58,10 +78,18 @@ document.addEventListener("DOMContentLoaded", function () {
       if (data.chunks) {
         data.chunks.forEach((c) => {
           if (c.thinking) {
-            thinkingDiv.textContent = (thinkingDiv.textContent || "") + c.thinking;
+            if (activeThinkingEl) {
+              const toggleBtn = activeThinkingEl.previousSibling;
+              if (toggleBtn && toggleBtn.tagName === "BUTTON") {
+                toggleBtn.style.display = "inline-block";
+              }
+              activeThinkingEl.textContent = (activeThinkingEl.textContent || "") + c.thinking;
+            }
           }
           if (c.text) {
-            responseDiv.textContent = responseDiv.textContent + c.text;
+            if (activeResponseEl) {
+              activeResponseEl.textContent = activeResponseEl.textContent + c.text;
+            }
           }
         });
       }
@@ -73,21 +101,33 @@ document.addEventListener("DOMContentLoaded", function () {
   // Handle stream completion
   socket.on("stream_complete", (full) => {
     try {
-      historyDiv.innerHTML = "";
-      (full.messages || []).forEach((m) => {
-        const el = document.createElement("div");
-        el.className = "msg-" + m.role;
-        el.innerHTML = `<strong>${m.role}:</strong> ${m.text}`;
-        historyDiv.appendChild(el);
-      });
+      const messages = full.messages || [];
+
+      // On the very first completion, render any system/user messages
+      // that the server sent (initial context) once at the top.
+      if (!initialMessagesRendered) {
+        messages.forEach((m) => {
+          if (m.role === "assistant") return;
+          const el = document.createElement("div");
+          el.className = "msg-" + m.role;
+          el.innerHTML = `<strong>${m.role}:</strong> ${m.text}`;
+          historyDiv.appendChild(el);
+        });
+        initialMessagesRendered = true;
+      }
 
       input.value = "";
+      activeThinkingEl = null;
+      activeResponseEl = null;
     } catch (err) {
       console.error("Failed to handle stream_complete", err, full);
     }
   });
 
   socket.on("stream_error", (err) => {
-    thinkingDiv.textContent = err && err.error ? err.error : "Stream error";
+    if (activeThinkingEl) {
+      activeThinkingEl.style.display = "block";
+      activeThinkingEl.textContent = err && err.error ? err.error : "Stream error";
+    }
   });
 });

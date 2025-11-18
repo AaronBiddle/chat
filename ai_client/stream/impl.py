@@ -60,6 +60,18 @@ class Streamer(StreamerClass):
                     # Skip unknown entries
                     continue
 
+        # If no API key is configured, do not call the remote API.
+        # Yield a clear error event so the UI can surface it, instead of
+        # falling back to a generic placeholder assistant message.
+        if not _MOONSHOT_API_KEY:
+            yield StreamEvent(
+                chunks=[],
+                event_id=None,
+                is_final=True,
+                error="Moonshot API key is not configured. Set MOONSHOT_API_KEY in your environment.",
+            )
+            return
+
         try:
             stream = _client.chat.completions.create(
                 model="kimi-k2-thinking",
@@ -110,17 +122,13 @@ class Streamer(StreamerClass):
             yield StreamEvent(chunks=[], event_id=None, is_final=True, error=None)
             return
 
-        except Exception:
-            # Resilient fallback: yield a short placeholder final event.
-            fallback_chunk = StreamChunk(
-                text=(
-                    "Hello — this is a placeholder AI response. Next: wire up a real API."
-                ),
-                index=0,
-                delta=None,
-                role=role,
-                thinking=None,
+        except Exception as e:
+            # On error, yield a final event carrying the error message so
+            # callers can display it, rather than emitting placeholder text.
+            yield StreamEvent(
+                chunks=[],
+                event_id=None,
+                is_final=True,
+                error=str(e),
             )
-            fallback_event = StreamEvent(chunks=[fallback_chunk], event_id=None, is_final=True, error=None)
-            yield fallback_event
             return
